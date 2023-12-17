@@ -30,12 +30,12 @@ app.get('/', (req, res) => {
   res.sendFile(__dirname + '/views/index.html')
 });
 
-app.get('api/users', async (req, res) => {
+app.get('/api/users', async (req, res) => {
   const user = await User.find({}).select('_id username')
-  if (!users){
+  if (!user){
     res.send("no users")
   } else {
-    res.json(users)
+    res.json(user)
   }
   }
 )
@@ -87,43 +87,43 @@ const {description, duration, date} = req.body
 })
 
 app.get('/api/users/:_id/logs', async (req, res) => {
-const {from, to, limit} = req.query;
-const id = req.params._id;
-const user = await User.findById(id);
+  const { from, to, limit } = req.query;
+  const { _id } = req.params;
 
-  if (!users){
-    res.send("no users")
-    return
-  } 
-  let Dateee = {}
-  if (from) {
-    Dateee["$gte"] = new Date(from)
+  try {
+    const user = await User.findById(_id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const filter = { user_id: _id };
+    if (from || to) {
+      filter.date = {};
+      if (from) filter.date.$gte = new Date(from);
+      if (to) filter.date.$lte = new Date(to);
+    }
+
+    let exercisesQuery = Excersice.find(filter).limit(parseInt(limit) || 0);
+
+    const exercises = await exercisesQuery.exec();
+
+    const formattedExercises = exercises.map(exercise => ({
+      description: exercise.description,
+      duration: exercise.duration,
+      date: exercise.date.toDateString()
+    }));
+
+    res.json({
+      _id: user._id,
+      username: user.username,
+      count: formattedExercises.length,
+      log: formattedExercises
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
   }
-  if (to){
-    Dateee["$lte"] = new Date(to)
-  } 
-  let filter = {user_id: id}
-
-  if (from || to) {
-    filter.date = Dateee
-  }
-  const log = await Excersice.find(filter).limit(+limit ?? 100)
-
-  const reallog = log.map((l) => ({
-    description: l.description,
-    duration: l.duration,
-    date: l.date.toDateString()
-  }))
-  
-  res.json({
-    username: user.username,
-    count: log.length,
-    _id: user._id,
-    reallog
-    
-  })
-  
-})
+});
 
 const listener = app.listen(process.env.PORT || 3000, () => {
   console.log('Your app is listening on port ' + listener.address().port)
